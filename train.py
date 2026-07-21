@@ -641,7 +641,7 @@ def main() -> None:
     ap.add_argument("--fast_eval_recon_patches", type=int, default=6)
     ap.add_argument("--full_eval_every", type=int, default=1000)
     ap.add_argument("--full_eval_batches", type=int, default=400)
-    ap.add_argument("--early_stop_patience", type=int, default=12)
+    ap.add_argument("--early_stop_patience", type=int, default=6)
     ap.add_argument("--early_stop_min_delta", type=float, default=0.001)
     ap.add_argument("--recon_k", type=int, default=4)
     ap.add_argument(
