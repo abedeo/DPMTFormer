@@ -319,7 +319,3 @@ class AnomalyInjector:
             "n_points": int(mask.sum()),
         }
         return x_noisy, mask, meta
-
-
-def build_default_injector(seed: int = 2026) -> AnomalyInjector:
-    return AnomalyInjector(config=AnomalyInjectConfig(), seed=seed)

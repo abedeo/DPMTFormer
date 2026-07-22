@@ -349,12 +349,9 @@ def eval_model(
     huber_delta: float = 1.0,
     raw_recon_kind: str = "huber",
     raw_huber_delta: float = 0.5,
-    eval_with_synth_anomaly: bool = False,
     cls_label_threshold: float = 0.25,
     recon_eval_patches: Optional[int] = None,
 ) -> Dict[str, float]:
-    del eval_with_synth_anomaly
-
     model.eval()
     use_amp = device.type == "cuda"
     amp_dtype = _autocast_dtype(device)
@@ -542,7 +539,6 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data_dir", type=str, default=_DEFAULT_DATA_DIR)
     ap.add_argument("--split", type=str, default="eval", choices=["train", "eval"])
-    ap.add_argument("--backbone", type=str, default="pmtformer")
     ap.add_argument("--ckpt", type=str,default="")
     ap.add_argument("--eval_seed", type=int, default=2026)
 
@@ -560,8 +556,8 @@ def main() -> None:
 
     ap.add_argument("--pred_patch_size", type=int, default=12)
     ap.add_argument("--recon_patch_size", type=int, default=6)
-    ap.add_argument("--use_raw_branch", action="store_true", default=True)
-    ap.add_argument("--no_use_raw_branch", action="store_true")
+    ap.add_argument("--use_raw_branch", action=argparse.BooleanOptionalAction, default=True)
+    ap.add_argument("--no_use_raw_branch", action="store_false", dest="use_raw_branch", help=argparse.SUPPRESS)
     ap.add_argument("--raw_scale", type=float, default=1.0)
     ap.add_argument("--raw_clip", type=float, default=None)
 
@@ -572,7 +568,7 @@ def main() -> None:
     ap.add_argument("--dropout", type=float, default=0.1)
     ap.add_argument("--cov_dim", type=int, default=5)
 
-    ap.add_argument("--eval_with_synth_anomaly", action="store_true", default=True)
+    ap.add_argument("--eval_with_synth_anomaly", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--identity_prob", type=float, default=0.40)
     ap.add_argument("--anom_point_ratio_min", type=float, default=0.02)
     ap.add_argument("--anom_point_ratio_max", type=float, default=0.05)
@@ -617,7 +613,7 @@ def main() -> None:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
-    use_raw_branch = not args.no_use_raw_branch
+    use_raw_branch = bool(args.use_raw_branch)
 
     datasets = load_datasets(args.data_dir)
     gstats = compute_global_norm_stats(datasets["train"])
@@ -653,8 +649,6 @@ def main() -> None:
 
     model = DPMTFormer(
         DPMTFormerConfig(
-            backbone_path=args.backbone,
-            use_text_prompt=False,
             sigma_min=1e-3,
             fixed_nu=8.0,
             n_hist_patch=12,
@@ -690,7 +684,6 @@ def main() -> None:
         huber_delta=args.huber_delta,
         raw_recon_kind=args.raw_recon_kind,
         raw_huber_delta=args.raw_huber_delta,
-        eval_with_synth_anomaly=bool(args.eval_with_synth_anomaly),
         cls_label_threshold=args.cls_label_threshold,
         recon_eval_patches=args.recon_eval_patches,
     )

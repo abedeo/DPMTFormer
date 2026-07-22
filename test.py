@@ -4,7 +4,7 @@ import argparse
 import json
 import os
 import random
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 import numpy as np
 import torch
@@ -135,14 +135,14 @@ def _add_patch_scores(
             item["label_ratio"] = max(float(item["label_ratio"]), float(labels_np[i, j]))
 
 
-def _metrics_from_store(
-    station_store: Dict[int, Dict[str, Any]],
+def _metrics_from_items(
+    items: Iterable[Dict[str, Any]],
     threshold: float,
     cls_label_threshold: float,
 ) -> Dict[str, float]:
     scores = []
     labels = []
-    for item in station_store.values():
+    for item in items:
         scores.append(float(np.median(item["logits"])))
         labels.append(1 if float(item["label_ratio"]) >= float(cls_label_threshold) else 0)
 
@@ -218,18 +218,11 @@ def run_test(
             print(f"[test] batches={step} stations={len(patch_store)}")
 
     per_station = {
-        station: _metrics_from_store(items, threshold=threshold, cls_label_threshold=cls_label_threshold)
+        station: _metrics_from_items(items.values(), threshold=threshold, cls_label_threshold=cls_label_threshold)
         for station, items in sorted(patch_store.items())
     }
-
-    merged: Dict[int, Dict[str, Any]] = {}
-    offset = 0
-    for station, items in sorted(patch_store.items()):
-        for patch_start, item in items.items():
-            merged[offset + int(patch_start)] = item
-        offset += 10_000_000_000
-
-    overall = _metrics_from_store(merged, threshold=threshold, cls_label_threshold=cls_label_threshold)
+    overall_items = [item for station_items in patch_store.values() for item in station_items.values()]
+    overall = _metrics_from_items(overall_items, threshold=threshold, cls_label_threshold=cls_label_threshold)
     return {
         "threshold": float(threshold),
         "cls_label_threshold": float(cls_label_threshold),
@@ -249,15 +242,15 @@ def main() -> None:
     ap.add_argument("--batch_size", type=int, default=256)
     ap.add_argument("--num_workers", type=int, default=0)
     ap.add_argument("--stride", type=int, default=24)
-    ap.add_argument("--threshold", type=float, default=1.92604)
+    ap.add_argument("--threshold", type=float, default=1.1093)
     ap.add_argument("--cls_label_threshold", type=float, default=0.15)
     ap.add_argument("--recon_eval_patches", type=int, default=N_RECON_HIST_PATCH)
     ap.add_argument("--sigma_floor", type=float, default=0.05)
 
     ap.add_argument("--pred_patch_size", type=int, default=12)
     ap.add_argument("--recon_patch_size", type=int, default=6)
-    ap.add_argument("--use_raw_branch", action="store_true", default=True)
-    ap.add_argument("--no_use_raw_branch", action="store_true")
+    ap.add_argument("--use_raw_branch", action=argparse.BooleanOptionalAction, default=True)
+    ap.add_argument("--no_use_raw_branch", action="store_false", dest="use_raw_branch", help=argparse.SUPPRESS)
     ap.add_argument("--raw_scale", type=float, default=1.0)
     ap.add_argument("--raw_clip", type=float, default=None)
 
@@ -274,13 +267,13 @@ def main() -> None:
     torch.manual_seed(args.seed)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    use_raw_branch = not args.no_use_raw_branch
+    use_raw_branch = bool(args.use_raw_branch)
 
-    train_data = load_split(os.path.join(args.data_dir, "train"), "train", scoring=False)
+    train_data = load_split(os.path.join(args.data_dir, "train"), "train")
     test_root = args.test_data_dir if args.test_data_dir else os.path.join(args.data_dir, "test")
     if not os.path.isdir(test_root):
         raise FileNotFoundError(f"missing test split directory: {test_root}")
-    test_data = _prepare_test_split(load_split(test_root, "test", scoring=False))
+    test_data = _prepare_test_split(load_split(test_root, "test"))
     gstats = compute_global_norm_stats(train_data)
 
     ds = SlidingWindowTestDataset(
@@ -303,8 +296,6 @@ def main() -> None:
 
     model = DPMTFormer(
         DPMTFormerConfig(
-            backbone_path="dpmtformer",
-            use_text_prompt=False,
             sigma_min=1e-3,
             fixed_nu=8.0,
             n_hist_patch=12,

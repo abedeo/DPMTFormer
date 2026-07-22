@@ -392,12 +392,6 @@ def _resolve_resume_ckpt(out_dir: str, resume_ckpt: str | None, resume_latest: b
     return os.path.join(out_dir, latest_name)
 
 
-def _cast_trainables_to_fp32(model: torch.nn.Module) -> None:
-    for _, param in model.named_parameters():
-        if param.requires_grad:
-            param.data = param.data.float()
-
-
 def _build_anomaly_cfg(args: argparse.Namespace) -> AnomalyInjectConfig:
     return AnomalyInjectConfig(
         enabled=bool(args.use_synth_anomaly),
@@ -738,8 +732,6 @@ def main() -> None:
 
     model = DPMTFormer(
         DPMTFormerConfig(
-            backbone_path="pmtformer",
-            use_text_prompt=False,
             sigma_min=1e-3,
             fixed_nu=8.0,
             n_hist_patch=12,
@@ -766,8 +758,6 @@ def main() -> None:
 
     for _, param in model.named_parameters():
         param.requires_grad = True
-
-    _cast_trainables_to_fp32(model)
 
     print("[params]", _count_trainable_params(model))
 
@@ -953,7 +943,6 @@ def main() -> None:
                     huber_delta=args.huber_delta,
                     raw_recon_kind=args.raw_recon_kind,
                     raw_huber_delta=args.raw_huber_delta,
-                    eval_with_synth_anomaly=True,
                     cls_label_threshold=args.cls_label_threshold,
                     recon_eval_patches=args.fast_eval_recon_patches,
                 )
@@ -977,7 +966,6 @@ def main() -> None:
                     huber_delta=args.huber_delta,
                     raw_recon_kind=args.raw_recon_kind,
                     raw_huber_delta=args.raw_huber_delta,
-                    eval_with_synth_anomaly=True,
                     cls_label_threshold=args.cls_label_threshold,
                     recon_eval_patches=N_RECON_HIST_PATCH,
                 )

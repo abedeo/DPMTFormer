@@ -10,9 +10,6 @@ import torch.nn.functional as F
 
 @dataclass
 class DPMTFormerConfig:
-    backbone_path: str = ""
-    use_text_prompt: bool = False
-
     sigma_min: float = 1e-3
     fixed_nu: float = 8.0
 
